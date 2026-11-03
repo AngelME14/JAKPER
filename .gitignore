@@ -1,0 +1,28 @@
+# Seguridad y Auditoría
+.env
+.env.*
+*.env
+repomix-output.xml
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.pytest_cache/
+alembic.ini
+
+# Frontend / Vite / Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Multimedia / Subidas locales
+uploads/
+static/uploads/
+
+# OS
+.DS_Store
+Thumbs.db

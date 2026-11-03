@@ -1,0 +1,280 @@
+@import '@fontsource/nunito/400.css';
+@import '@fontsource/nunito/600.css';
+@import '@fontsource/nunito/700.css';
+@import '@fontsource/nunito/800.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-mono/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background-color: #fffbf5;
+  color: #3a1f0f;
+  font-family: Nunito, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Rotulo de campo y encabezado de tabla */
+  .etiqueta {
+    @apply text-xs font-bold text-tinta-suave;
+  }
+
+  /* Cabecera de tabla: el color vive en cada celda para poder redondear las esquinas */
+  .celda-titulo {
+    @apply whitespace-nowrap border-b-2 border-amber-300 bg-amber-100/70 px-3 py-2.5 first:rounded-l-lg last:rounded-r-lg;
+  }
+
+  /* border-separate: con border-collapse el navegador ignora el radio de las celdas */
+  .tabla {
+    @apply border-separate border-spacing-0;
+  }
+  .tabla > tbody > tr > td {
+    @apply border-t border-borde;
+  }
+  .tabla > tbody > tr:first-child > td {
+    @apply border-t-0;
+  }
+
+  .celda {
+    @apply px-3 py-2;
+  }
+
+  .campo {
+    @apply h-10 rounded-lg border border-stone-300 bg-white px-3 text-sm text-tinta shadow-sm outline-none placeholder:text-tinta-tenue focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 disabled:opacity-60 aria-[invalid=true]:border-rose-600;
+  }
+
+  .foco {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500;
+  }
+
+  .boton {
+    @apply foco inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-orange-200 bg-white px-3.5 text-sm font-bold text-orange-700 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Accion principal: naranja, texto blanco en negrita, brillo al pasar */
+  .boton-primario {
+    @apply foco inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 text-sm font-bold text-white shadow-boton hover:brightness-110 disabled:cursor-not-allowed disabled:bg-orange-200 disabled:shadow-none disabled:brightness-100;
+  }
+
+  .tarjeta {
+    @apply rounded-3xl border border-borde bg-white shadow-suave;
+  }
+
+  .tecla {
+    @apply rounded-md border border-current px-1 font-mono text-[10px] font-normal leading-4 opacity-80;
+  }
+}
+
+/* Flecha propia en los selects: misma forma en todos los navegadores */
+select.campo {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237C5F4C' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 1rem;
+  padding-right: 2.4rem;
+}
+
+/* Movimiento: solo responde a una accion del cajero y nunca lo hace esperar */
+.presion,
+.boton,
+.boton-primario {
+  transition: transform 100ms ease-out, filter 120ms ease-out;
+}
+.presion:active:not(:disabled),
+.boton:active:not(:disabled),
+.boton-primario:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* El tooltip aparece con retardo al pasar el raton, y de inmediato con el teclado */
+.tooltip-dock {
+  opacity: 0;
+  transition: opacity 100ms linear;
+}
+.group:hover > .tooltip-dock {
+  opacity: 1;
+  transition-delay: 150ms;
+}
+.group:focus-visible > .tooltip-dock {
+  opacity: 1;
+}
+
+/* Renglon recien escaneado: confirma que entro sin obligar a leer la lista */
+@keyframes linea-nueva {
+  from {
+    background-color: #ffedd5;
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.linea-nueva {
+  animation: linea-nueva 700ms ease-out;
+}
+
+/* El importe cambia de cantidad: mismo gesto en menor escala */
+@keyframes importe-cambia {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.importe-cambia {
+  display: inline-block;
+  transform-origin: right center;
+  animation: importe-cambia 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes dialogo-entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+dialog[open] {
+  animation: dialogo-entra 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Unica coreografia de entrada: la mascota de la pantalla de acceso se asoma desde abajo */
+@keyframes asoma {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.asoma {
+  animation: asoma 600ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
+}
+
+/* Linea de la grafica: se dibuja una vez al cargar */
+@keyframes traza {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.traza {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: traza 900ms ease-out 100ms forwards;
+}
+
+/* Ondas organicas del fondo del area de trabajo */
+.fondo-ondas {
+  background-color: #fffbf5;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='none'%3E%3Cpath d='M0 300V190C150 130 260 250 420 220S720 90 880 140 1110 210 1200 150V300Z' fill='%23fed7aa' fill-opacity='.28'/%3E%3Cpath d='M0 300V240C170 200 300 290 480 262S790 170 940 210 1130 270 1200 240V300Z' fill='%23fdba74' fill-opacity='.22'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 220px;
+  background-attachment: local;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presion,
+  .boton,
+  .boton-primario,
+  .tooltip-dock {
+    transition: none;
+  }
+  .presion:active:not(:disabled),
+  .boton:active:not(:disabled),
+  .boton-primario:active:not(:disabled) {
+    transform: none;
+  }
+  .importe-cambia,
+  .asoma,
+  dialog[open] {
+    animation: none;
+  }
+  .traza {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .linea-nueva {
+    animation-duration: 1ms;
+  }
+}
+
+/* Ticket termico: fuera de la pantalla siempre; al imprimir es lo unico que se ve */
+.ticket-impresion,
+.reporte-impresion {
+  display: none;
+}
+
+/* Hoja horizontal para el reporte de Kardex (tabla ancha); el ticket sigue en el papel de la impresora */
+@page reporte {
+  size: landscape;
+  margin: 0;
+}
+
+/* @page va fuera de @media: dentro, Chrome lo ignora y deja sus margenes por defecto */
+@page {
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  /* Oculta #root completo (sidebar, header, POS y los <dialog> abiertos) */
+  body > *:not(.ticket-impresion):not(.reporte-impresion) {
+    display: none !important;
+  }
+
+  .ticket-impresion,
+  .reporte-impresion {
+    display: block !important;
+  }
+
+  .reporte-impresion {
+    page: reporte;
+  }
+  .reporte-kardex {
+    color: #000 !important;
+  }
+  .reporte-kardex * {
+    color: #000 !important;
+  }
+  .reporte-kardex thead {
+    display: table-header-group;
+  }
+
+  .ticket-termico {
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    break-inside: avoid;
+  }
+
+  /* La termica imprime en negro puro: el acento naranja y los grises claros se pierden o salen borrosos */
+  .ticket-termico,
+  .ticket-termico * {
+    color: #000 !important;
+  }
+  .ticket-termico hr {
+    border-color: #000 !important;
+  }
+}
