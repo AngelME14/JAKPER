@@ -209,6 +209,46 @@ def test_concurrencia_for_update_rechaza_segunda_venta(datos, monkeypatch):
     assert ganador[2]
 
 
+def test_bloqueo_de_lotes_por_id_evita_deadlock_entre_venta_y_cancelacion(datos):
+    """El orden de consumo FEFO no puede ser el orden de los candados.
+
+    Lote A (id menor) caduca despues que lote B (id mayor): FEFO consume B y luego A.
+    `holder` imita a una cancelacion (candados por id: A y luego B). Con candados en orden FEFO
+    la venta retiene B esperando A mientras `holder` retiene A esperando B -> deadlock.
+    """
+    pid = datos.producto(caducidad=True)
+    lote_a = datos.lote(pid, "A-TARDE", "3", caduca=HOY + timedelta(days=60))
+    lote_b = datos.lote(pid, "B-PRONTO", "3", caduca=HOY + timedelta(days=10))
+    assert lote_a < lote_b
+
+    resultado: dict[str, object] = {}
+
+    def vender():
+        with SessionLocal() as db:
+            try:
+                resultado["venta"] = crear_venta(db, datos.venta_payload(pid, 6), datos.usuario_id).id
+            except Exception as e:  # noqa: BLE001
+                resultado["venta_error"] = e
+
+    with SessionLocal() as holder:
+        holder.execute(text("SET LOCAL lock_timeout = '10s'"))
+        holder.execute(text("SELECT 1 FROM lotes_stock WHERE id = :l FOR UPDATE"), {"l": lote_a})
+        hilo = threading.Thread(target=vender)
+        hilo.start()
+        time.sleep(2.5)  # supera deadlock_timeout (1 s): un ciclo ya se habria detectado
+        try:
+            holder.execute(text("SELECT 1 FROM lotes_stock WHERE id = :l FOR UPDATE"), {"l": lote_b})
+            holder.commit()
+        except DBAPIError as e:
+            holder.rollback()
+            resultado["holder_error"] = e
+        hilo.join(timeout=30)
+
+    assert "holder_error" not in resultado, repr(resultado.get("holder_error"))
+    assert "venta_error" not in resultado, repr(resultado.get("venta_error"))
+    assert resultado["venta"]
+
+
 def test_check_cantidad_disponible_nunca_negativa(datos):
     pid = datos.producto(caducidad=False)
     lote_id = datos.lote(pid, "L1", "1")

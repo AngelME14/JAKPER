@@ -77,10 +77,20 @@ def _registrar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     for item in data.items:
         pedido[item.producto_id] = pedido.get(item.producto_id, Decimal(0)) + item.cantidad
 
-    # Orden estable por producto_id: dos ventas concurrentes bloquean en el mismo orden
+    # Todos los lotes candidatos se bloquean de una vez y en orden de id (ver _bloquear_lotes);
+    # el orden FEFO/FIFO se aplica despues, en memoria, sin alterar el orden de los candados.
+    lotes_por_producto: dict[int, list[LoteStock]] = {pid: [] for pid in pedido}
+    for lote in _bloquear_lotes(
+        db,
+        LoteStock.producto_id.in_(pedido),
+        LoteStock.activo.is_(True),
+        LoteStock.cantidad_disponible > 0,
+    ):
+        lotes_por_producto[lote.producto_id].append(lote)
+
     salidas: list[tuple[Producto, LoteStock, Decimal]] = []
     for producto_id in sorted(pedido):
-        salidas += _despachar(db, producto_id, pedido[producto_id])
+        salidas += _despachar(db, producto_id, pedido[producto_id], lotes_por_producto[producto_id])
 
     lineas = [
         (producto, lote, cantidad, (cantidad * producto.precio_venta).quantize(CENTAVO, ROUND_HALF_UP))
@@ -139,8 +149,19 @@ def _registrar_venta(db: Session, data: VentaCreate, usuario_id: int) -> Venta:
     return venta
 
 
-def _despachar(db: Session, producto_id: int, cantidad: Decimal):
-    """FEFO si el producto requiere caducidad, FIFO si no. Bloquea los lotes con FOR UPDATE."""
+def _bloquear_lotes(db: Session, *criterios) -> list[LoteStock]:
+    """SELECT ... FOR UPDATE de lotes, SIEMPRE ordenado por id.
+
+    Unico punto donde una transaccion de ventas toma candados de lotes: venta, cancelacion y
+    cualquier otra ruta que bloquee varios lotes deben usarlo (o ordenar por LoteStock.id), de
+    modo que dos transacciones que compartan lotes los pidan en el mismo orden y no se
+    esperen en circulo (deadlock). El orden de consumo FEFO/FIFO NO debe usarse para bloquear.
+    """
+    return list(db.scalars(select(LoteStock).where(*criterios).order_by(LoteStock.id).with_for_update()))
+
+
+def _despachar(db: Session, producto_id: int, cantidad: Decimal, candidatos: list[LoteStock]):
+    """FEFO si el producto requiere caducidad, FIFO si no, sobre lotes ya bloqueados por id."""
     producto = db.get(Producto, producto_id)
     if producto is None or not producto.activo:
         raise VentaError(f"Producto {producto_id} inexistente o inactivo")
@@ -148,20 +169,13 @@ def _despachar(db: Session, producto_id: int, cantidad: Decimal):
         raise VentaError(f"Producto {producto_id} no admite cantidades decimales")
 
     if producto.requiere_caducidad:
-        orden = (LoteStock.fecha_caducidad.asc().nulls_last(), LoteStock.fecha_recepcion.asc())
-    else:
-        orden = (LoteStock.fecha_recepcion.asc(),)
-
-    todos = db.scalars(
-        select(LoteStock)
-        .where(
-            LoteStock.producto_id == producto_id,
-            LoteStock.activo.is_(True),
-            LoteStock.cantidad_disponible > 0,
+        # Caducidad ascendente con las nulas al final, luego recepcion; id desempata
+        todos = sorted(
+            candidatos,
+            key=lambda l: (l.fecha_caducidad is None, l.fecha_caducidad or date.max, l.fecha_recepcion, l.id),
         )
-        .order_by(*orden)
-        .with_for_update()
-    ).all()
+    else:
+        todos = sorted(candidatos, key=lambda l: (l.fecha_recepcion, l.id))
     hoy = date.today()
     vencidos = [l for l in todos if l.fecha_caducidad is not None and l.fecha_caducidad < hoy]
     lotes = [l for l in todos if l not in vencidos]
@@ -221,16 +235,8 @@ def _cancelar_venta(db: Session, venta_id: int, motivo: str, usuario_id: int) ->
     detalles = db.scalars(
         select(DetalleVenta).where(DetalleVenta.venta_id == venta_id).order_by(DetalleVenta.id)
     ).all()
-    # Lotes bloqueados en orden de id: orden estable, sin deadlocks entre cancelaciones
-    lotes = {
-        l.id: l
-        for l in db.scalars(
-            select(LoteStock)
-            .where(LoteStock.id.in_({d.lote_id for d in detalles}))
-            .order_by(LoteStock.id)
-            .with_for_update()
-        )
-    }
+    # Mismo criterio que la venta (id ascendente): sin deadlocks contra ventas ni otras cancelaciones
+    lotes = {l.id: l for l in _bloquear_lotes(db, LoteStock.id.in_({d.lote_id for d in detalles}))}
     # Lo ya devuelto (con o sin reingreso) no vuelve a reponerse: lo reingresado ya está
     # en el lote y lo no reingresado se declaró pérdida física.
     devuelto = dict(

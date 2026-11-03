@@ -8,12 +8,14 @@ import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
-from sqlalchemy.exc import DBAPIError
+from psycopg2 import errors as pg_errors
+from psycopg2 import OperationalError as PgOperationalError
+from sqlalchemy.exc import DataError, DBAPIError, IntegrityError, InternalError, OperationalError
 
 load_dotenv()
 
 from app.core.database import SessionLocal  # noqa: E402
-from app.main import app, error_de_base_de_datos  # noqa: E402
+from app.main import MENSAJE_CONFLICTO_CONCURRENCIA, app, error_de_base_de_datos, error_operacional  # noqa: E402
 from app.models import Categoria, LoteStock, Producto, Usuario  # noqa: E402
 
 
@@ -85,6 +87,58 @@ def test_data_error_400():
         exc = provocar(db, Producto(categoria_id=1, nombre="x", precio_venta=D("1e12")))
     assert type(exc).__name__ == "DataError"
     assert traducir(exc) == (400, {"detail": "Dato con formato o rango inválido"})
+
+
+def traducir_operacional(exc):
+    r = asyncio.run(error_operacional(None, exc))
+    return r.status_code, json.loads(r.body)
+
+
+def test_lock_not_available_real_llega_como_409(producto):
+    """Conflicto real de PostgreSQL: SELECT ... FOR UPDATE NOWAIT sobre una fila bloqueada (55P03)."""
+    with SessionLocal() as retiene, SessionLocal() as espera:
+        retiene.execute(text("SELECT 1 FROM productos WHERE id = :p FOR UPDATE"), {"p": producto})
+        with pytest.raises(OperationalError) as info:
+            espera.execute(text("SELECT 1 FROM productos WHERE id = :p FOR UPDATE NOWAIT"), {"p": producto})
+        espera.rollback()
+        retiene.rollback()
+    assert info.value.orig.pgcode == "55P03"
+    assert traducir_operacional(info.value) == (409, {"detail": MENSAJE_CONFLICTO_CONCURRENCIA})
+    assert MENSAJE_CONFLICTO_CONCURRENCIA == (
+        "Conflicto de concurrencia: el recurso está bloqueado por otra transacción. Por favor, intenta de nuevo."
+    )
+
+
+def test_deadlock_detectado_llega_como_409():
+    por_clase = OperationalError("SELECT 1", {}, pg_errors.DeadlockDetected("deadlock detected"))
+    assert traducir_operacional(por_clase) == (409, {"detail": MENSAJE_CONFLICTO_CONCURRENCIA})
+    por_clase = OperationalError("SELECT 1", {}, pg_errors.LockNotAvailable("lock not available"))
+    assert traducir_operacional(por_clase) == (409, {"detail": MENSAJE_CONFLICTO_CONCURRENCIA})
+
+
+def test_operational_error_de_conexion_503_sin_filtrar_detalles(caplog):
+    orig = PgOperationalError("could not connect to server at 10.1.2.3 user=postgres password=ultrasecreto")
+    exc = OperationalError("SELECT secreto FROM tabla_interna", {"clave": "ultrasecreto"}, orig)
+    with caplog.at_level("ERROR"):
+        status, body = traducir_operacional(exc)
+    assert status == 503
+    cuerpo = json.dumps(body)
+    for secreto in ("10.1.2.3", "postgres", "ultrasecreto", "tabla_interna"):
+        assert secreto not in cuerpo
+    registrado = " ".join(r.getMessage() for r in caplog.records)
+    assert "OperationalError" in registrado
+    for secreto in ("10.1.2.3", "ultrasecreto", "tabla_interna"):
+        assert secreto not in registrado
+
+
+def test_handlers_de_bd_conviven_sin_pisarse():
+    manejadores = app.exception_handlers
+    assert manejadores[OperationalError] is error_operacional
+    for clase in (IntegrityError, DataError, InternalError):
+        assert manejadores[clase] is error_de_base_de_datos
+    # Sin relacion de herencia entre OperationalError y las clases del otro handler
+    assert not issubclass(OperationalError, (IntegrityError, DataError, InternalError))
+    assert not issubclass(IntegrityError, OperationalError)
 
 
 def test_cors_permite_origen_de_vite_con_credenciales():
