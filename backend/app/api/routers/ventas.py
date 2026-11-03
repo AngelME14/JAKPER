@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_manager_user
 from app.core.database import get_db
 from app.models import Usuario, Venta
 from app.schemas.ventas import (
@@ -63,7 +63,7 @@ def devolver(
     venta_id: int,
     data: DevolucionVentaCreate,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[Usuario, Depends(get_current_user)],
+    user: Annotated[Usuario, Depends(get_manager_user)],
 ):
     """Devuelve artículos de una venta. Con reingreso suben las existencias del lote; sin él, nace una merma."""
     try:
@@ -93,7 +93,7 @@ def cancelar(
     venta_id: int,
     data: VentaCancelar,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[Usuario, Depends(get_current_user)],
+    user: Annotated[Usuario, Depends(get_manager_user)],
 ):
     try:
         return cancelar_venta(db, venta_id, data.motivo_cancelacion, user.id)

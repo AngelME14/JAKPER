@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_manager_user
 from app.core.database import get_db
 from app.models import Usuario
 from app.schemas.ventas import DevolucionCreate, DevolucionResponse
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/devoluciones", tags=["devoluciones"])
 def devolver(
     data: DevolucionCreate,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[Usuario, Depends(get_current_user)],
+    user: Annotated[Usuario, Depends(get_manager_user)],
 ):
     try:
         return registrar_devolucion(db, data, user.id)

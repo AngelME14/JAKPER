@@ -148,6 +148,33 @@ def test_dashboard_sin_token_recibe_401():
     assert client.get("/dashboard/alertas").status_code == 401
 
 
+ENDPOINTS_SOLO_GERENCIA = [
+    "/ventas/1/cancelar",
+    "/ventas/1/devoluciones",
+    "/devoluciones",
+    "/mermas",
+    "/compras",
+    "/proveedores",
+]
+
+
+@pytest.mark.parametrize("ruta", ENDPOINTS_SOLO_GERENCIA)
+def test_endpoints_de_gerencia_rechazan_cajero_y_anonimo(datos, ruta):
+    # El cuerpo vacio es invalido a proposito: el rol se valida antes que el cuerpo
+    for prefijo in ("", "/api"):
+        assert client.post(prefijo + ruta, json={}).status_code == 401
+        r = client.post(prefijo + ruta, json={}, headers=datos.headers(datos.cajero_id))
+        assert r.status_code == 403, (prefijo + ruta, r.text)
+        assert r.json()["detail"] == "Permisos insuficientes"
+
+
+@pytest.mark.parametrize("ruta", ENDPOINTS_SOLO_GERENCIA)
+def test_endpoints_de_gerencia_admiten_encargado(datos, ruta):
+    # Pasa el control de rol: con cuerpo vacio el resultado es 422 de validacion, no 403
+    r = client.post(ruta, json={}, headers=datos.headers(datos.encargado_id))
+    assert r.status_code == 422, (ruta, r.status_code, r.text)
+
+
 def test_dashboard_resumen_permisos_y_forma(datos):
     assert client.get("/dashboard/resumen").status_code == 401
     assert client.get("/dashboard/resumen", headers=datos.headers(datos.cajero_id)).status_code == 403

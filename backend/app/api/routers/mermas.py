@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_manager_user
 from app.core.database import get_db
 from app.models import Usuario
 from app.schemas.inventario import MermaCreate, MermaResponse
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/mermas", tags=["mermas"])
 def dar_de_baja(
     data: MermaCreate,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[Usuario, Depends(get_current_user)],
+    user: Annotated[Usuario, Depends(get_manager_user)],
 ):
     try:
         return registrar_merma(db, data, user.id)

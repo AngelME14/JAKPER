@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_manager_user
+from app.api.deps import get_manager_user
 from app.core.database import get_db
 from app.models import Compra, Usuario
 from app.schemas.compras import CompraComprobante, CompraCreate, CompraResponse
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/compras", tags=["compras"])
 def ingresar_mercancia(
     data: CompraCreate,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[Usuario, Depends(get_current_user)],
+    user: Annotated[Usuario, Depends(get_manager_user)],
 ):
     try:
         return registrar_compra(db, data, user.id)

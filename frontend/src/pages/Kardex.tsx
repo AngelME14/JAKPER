@@ -52,7 +52,8 @@ function formatoFecha(iso: string): string {
 
 export default function Kardex() {
   const rol = useAuthStore((s) => s.rol);
-  const puedeMermar = rol === 'Admin' || rol === 'Encargado';
+  // Cajero no ve devoluciones ni mermas: esos controles ni se renderizan (el servidor tambien los rechaza)
+  const puedeGestionar = rol === 'Admin' || rol === 'Encargado';
 
   const [desde, setDesde] = useState(() => haceDias(7));
   const [hasta, setHasta] = useState(() => fechaISO());
@@ -175,16 +176,18 @@ export default function Kardex() {
             <FileDown size={16} aria-hidden="true" />
             Exportar Reporte
           </button>
-          <button
-            ref={botonDevolucion}
-            type="button"
-            onClick={() => setDevolucion({})}
-            className="boton h-12 rounded-2xl px-5"
-          >
-            <Undo2 size={16} aria-hidden="true" />
-            Registrar Devolución
-          </button>
-          {puedeMermar && (
+          {puedeGestionar && (
+            <button
+              ref={botonDevolucion}
+              type="button"
+              onClick={() => setDevolucion({})}
+              className="boton h-12 rounded-2xl px-5"
+            >
+              <Undo2 size={16} aria-hidden="true" />
+              Registrar Devolución
+            </button>
+          )}
+          {puedeGestionar && (
             <button
               ref={botonMerma}
               type="button"
@@ -334,7 +337,7 @@ export default function Kardex() {
                         <span className="text-xs font-normal text-tinta-suave">{unidad}</span>
                       </td>
                       <td className="px-3 py-2.5">
-                        {doc && etiquetaDoc && (puedeMermar || doc.tipo === 'venta') ? (
+                        {doc && etiquetaDoc && (puedeGestionar || doc.tipo === 'venta') ? (
                           <button
                             type="button"
                             onClick={() => abrirComprobante(doc)}
@@ -393,7 +396,7 @@ export default function Kardex() {
           comprobante={comprobante}
           alCerrar={cerrarComprobante}
           alDevolver={
-            comprobante.tipo === 'venta'
+            puedeGestionar && comprobante.tipo === 'venta'
               ? (detalleId) => {
                   const folio = comprobante.folio;
                   setComprobante(null);
@@ -403,7 +406,7 @@ export default function Kardex() {
           }
         />
       )}
-      {devolucion && (
+      {puedeGestionar && devolucion && (
         <ModalDevolucion
           folioInicial={devolucion.folio}
           detalleInicialId={devolucion.detalleId}
@@ -424,7 +427,9 @@ export default function Kardex() {
           }}
         />
       )}
-      <MermaModal abierto={modalAbierto} alCerrar={() => setModalAbierto(false)} alRegistrar={alRegistrarMerma} />
+      {puedeGestionar && (
+        <MermaModal abierto={modalAbierto} alCerrar={() => setModalAbierto(false)} alRegistrar={alRegistrarMerma} />
+      )}
     </div>
   );
 }

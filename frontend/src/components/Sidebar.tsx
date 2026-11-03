@@ -23,14 +23,16 @@ export interface ItemNav {
   icono: LucideIcon;
   /** Sin definir = todos los roles. El servidor valida los permisos igualmente */
   roles?: Rol[];
+  /** Nombre que ve un rol sin acceso a todas las funciones de la pantalla */
+  etiquetaLimitada?: string;
 }
 
 export const NAVEGACION: ItemNav[] = [
   { to: '/dashboard', etiqueta: 'Dashboard', icono: LayoutDashboard, roles: ['Admin', 'Encargado'] },
   { to: '/', etiqueta: 'Punto de Venta', icono: ShoppingCart },
   { to: '/productos', etiqueta: 'Inventario', icono: Package },
-  { to: '/compras', etiqueta: 'Compras', icono: Truck },
-  { to: '/kardex', etiqueta: 'Kardex y Mermas', icono: ArrowLeftRight },
+  { to: '/compras', etiqueta: 'Compras', icono: Truck, roles: ['Admin', 'Encargado'] },
+  { to: '/kardex', etiqueta: 'Kardex y Mermas', icono: ArrowLeftRight, etiquetaLimitada: 'Kardex' },
   { to: '/usuarios', etiqueta: 'Equipo', icono: Users, roles: ['Admin'] },
 ];
 
@@ -110,21 +112,25 @@ export default function Sidebar() {
       </div>
 
       <ul className="relative flex-1 space-y-1 px-3 py-3">
-        {NAVEGACION.filter((item) => permitido(item, rol)).map(({ to, etiqueta, icono: Icono }) => (
-          <li key={to}>
-            <NavLink
-              to={to}
-              end={to === '/'}
-              aria-label={etiqueta}
-              className={({ isActive }) =>
-                `${boton} ${isActive ? 'bg-white !text-orange-700 shadow-sm hover:bg-white' : ''}`
-              }
-            >
-              <Icono size={20} strokeWidth={1.9} aria-hidden="true" className="shrink-0" />
-              <Rotulo abierto={abierto}>{etiqueta}</Rotulo>
-            </NavLink>
-          </li>
-        ))}
+        {NAVEGACION.filter((item) => permitido(item, rol)).map((item) => {
+          const { to, icono: Icono } = item;
+          const etiqueta = rol === 'Cajero' && item.etiquetaLimitada ? item.etiquetaLimitada : item.etiqueta;
+          return (
+            <li key={to}>
+              <NavLink
+                to={to}
+                end={to === '/'}
+                aria-label={etiqueta}
+                className={({ isActive }) =>
+                  `${boton} ${isActive ? 'bg-white !text-orange-700 shadow-sm hover:bg-white' : ''}`
+                }
+              >
+                <Icono size={20} strokeWidth={1.9} aria-hidden="true" className="shrink-0" />
+                <Rotulo abierto={abierto}>{etiqueta}</Rotulo>
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
 
       <div className="relative space-y-1 px-3 pb-4">
