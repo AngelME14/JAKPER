@@ -37,6 +37,12 @@ class Venta(Base):
         ),
         Index("idx_ventas_cliente_id", "cliente_id"),
         Index("idx_ventas_usuario_id", "usuario_id"),
+        # Dashboard y reportes: solo ventas vigentes, por rango de fecha
+        Index(
+            "idx_ventas_fecha_completadas",
+            "fecha_venta",
+            postgresql_where=text("estado = 'COMPLETADA'"),
+        ),
     )
 
     id: Mapped[pk]

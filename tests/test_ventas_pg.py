@@ -517,3 +517,97 @@ def test_devolucion_rechazada_en_venta_cancelada_o_detalle_ajeno(datos):
         cancelar_venta(db, v1.id, "x", datos.usuario_id)
     with pytest.raises(DevolucionError, match="cancelada"):
         devolver(datos, v1.id, detalle_de(v1.id), 1, True)
+
+
+# ------------------------------------------------------ rendimiento de consultas
+
+def _contar_sentencias(accion):
+    """Ejecuta `accion` y devuelve (resultado, sentencias SQL emitidas)."""
+    from sqlalchemy import event
+
+    sentencias: list[str] = []
+
+    def registrar(conn, cursor, statement, *a):
+        sentencias.append(statement)
+
+    event.listen(engine, "before_cursor_execute", registrar)
+    try:
+        resultado = accion()
+    finally:
+        event.remove(engine, "before_cursor_execute", registrar)
+    return resultado, sentencias
+
+
+def test_consulta_por_folio_no_hace_n_mas_1(datos):
+    def folio_de_venta(n_renglones):
+        items, pagos_total = [], D(0)
+        for _ in range(n_renglones):
+            pid = datos.producto(caducidad=False)
+            datos.lote(pid, "L", "5")
+            items.append({"producto_id": pid, "cantidad": 1})
+            pagos_total += D("10.00")
+        payload = VentaCreate(
+            cliente_id=datos.cliente_id, items=items,
+            pagos=[{"metodo": "EFECTIVO", "importe": pagos_total, "pago_con": pagos_total, "cambio": 0}],
+        )
+        with SessionLocal() as db:
+            return crear_venta(db, payload, datos.usuario_id).folio
+
+    def consultar(folio):
+        with SessionLocal() as db:  # sesión nueva: nada en el mapa de identidad
+            return consultar_venta_por_folio(db, folio)
+
+    folio_chico, folio_grande = folio_de_venta(1), folio_de_venta(6)
+    chica, sql_chica = _contar_sentencias(lambda: consultar(folio_chico))
+    grande, sql_grande = _contar_sentencias(lambda: consultar(folio_grande))
+    assert len(chica.items) == 1 and len(grande.items) == 6
+    assert {i.nombre_producto for i in grande.items}  # el producto llegó sin lazy-load fallido
+    # venta + detalles + productos + lotes + devuelto: constante, no crece con los renglones
+    assert len(sql_grande) == len(sql_chica) <= 5, sql_grande
+
+
+def test_dashboard_filtra_por_rango_y_respeta_los_limites_del_dia(datos):
+    from app.api.routers.dashboard import _ventas_entre, _ventas_por_dia
+
+    with SessionLocal() as db:
+        hoy = db.scalar(text("SELECT current_date"))
+        base_hoy = _ventas_entre(db, hoy, hoy + timedelta(days=1))
+        base_manana = _ventas_entre(db, hoy + timedelta(days=1), hoy + timedelta(days=2))
+        base_dias = {d.fecha: d.total for d in _ventas_por_dia(db, hoy, dias=7)}
+
+    pid = datos.producto(caducidad=False)
+    datos.lote(pid, "L", "20")
+    ids = []
+    for cantidad in (1, 2, 3):  # totales 10, 20 y 30
+        with SessionLocal() as db:
+            ids.append(crear_venta(db, datos.venta_payload(pid, cantidad), datos.usuario_id).id)
+    inicio = "date_trunc('day', now())"
+    with SessionLocal() as db, db.begin():
+        for venta_id, fecha in zip(
+            ids,
+            (inicio, f"{inicio} - interval '1 second'", f"{inicio} + interval '1 day'"),
+        ):
+            db.execute(text(f"UPDATE ventas SET fecha_venta = {fecha} WHERE id = :i"), {"i": venta_id})
+
+    with SessionLocal() as db:
+        # 00:00:00 de hoy entra en hoy; 23:59:59 de ayer no; 00:00:00 de mañana es de mañana
+        assert _ventas_entre(db, hoy, hoy + timedelta(days=1)) - base_hoy == D("10.00")
+        assert _ventas_entre(db, hoy + timedelta(days=1), hoy + timedelta(days=2)) - base_manana == D("30.00")
+        dias = {d.fecha: d.total for d in _ventas_por_dia(db, hoy, dias=7)}
+    assert dias[hoy] - base_dias[hoy] == D("10.00")
+    assert dias[hoy - timedelta(days=1)] - base_dias[hoy - timedelta(days=1)] == D("20.00")
+    assert hoy + timedelta(days=1) not in dias  # la ventana termina hoy
+
+
+def test_dashboard_no_usa_func_date_en_el_filtro():
+    from app.api.routers.dashboard import _ventas_entre, _ventas_por_dia
+
+    with SessionLocal() as db:
+        hoy = db.scalar(text("SELECT current_date"))
+        _, sql = _contar_sentencias(
+            lambda: (_ventas_entre(db, hoy, hoy), _ventas_por_dia(db, hoy, dias=7))
+        )
+    for sentencia in sql:
+        donde = sentencia.split("WHERE", 1)[-1].split("GROUP BY", 1)[0].lower()
+        assert "date(" not in donde, sentencia
+        assert "ventas.fecha_venta >=" in donde

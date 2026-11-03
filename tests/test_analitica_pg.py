@@ -5,6 +5,7 @@ Cada prueba crea sus propios datos (prefijo TEST_PG_) y los borra al terminar.
 """
 import re
 import uuid
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from decimal import Decimal as D
 
@@ -401,6 +402,48 @@ def test_kardex_folios_saldo_acumulado_y_busqueda_trgm(datos):
     por_folio_venta = client.get("/inventario/kardex", params={"q": venta.folio}, headers=h).json()
     # Coincide tanto la VENTA como la DEVOLUCION_STOCK ligada al mismo ticket
     assert {m["tipo_movimiento"] for m in por_folio_venta} == {"VENTA", "DEVOLUCION_STOCK"}
+
+
+# ------------------------------------------------- limite de 5 MB en la foto
+
+def _alta_con_foto(datos, tamano: int, nombre: str):
+    return client.post(
+        "/productos",
+        data={"categoria_id": str(datos.categoria_id), "nombre": nombre, "precio_venta": "10.00"},
+        files={"imagen": ("foto.png", b"a" * tamano, "image/png")},
+        headers=datos.headers(datos.encargado_id),
+    )
+
+
+def _nombres_de_prueba(datos):
+    with SessionLocal() as db:
+        return db.scalars(select(Producto.id).where(Producto.nombre.like(f"TEST_PG_foto_{datos.tag}%"))).all()
+
+
+def test_foto_mayor_a_5mb_recibe_413_y_no_crea_producto(datos):
+    limite = 5 * 1024 * 1024
+    # Pasa el filtro por Content-Length (cabe en el margen) y la rechaza la lectura acotada
+    r = _alta_con_foto(datos, limite + 1, f"TEST_PG_foto_{datos.tag}_lectura")
+    assert r.status_code == 413, r.text
+    assert r.json() == {"detail": "La imagen supera el límite de 5 MB."}
+    # Declara un cuerpo mucho mayor: se corta antes de parsear el multipart
+    r = _alta_con_foto(datos, limite + 1024 * 1024, f"TEST_PG_foto_{datos.tag}_cabecera")
+    assert r.status_code == 413, r.text
+    assert r.json() == {"detail": "La imagen supera el límite de 5 MB."}
+    assert _nombres_de_prueba(datos) == []
+
+
+def test_foto_de_exactamente_5mb_se_acepta(datos):
+    r = _alta_con_foto(datos, 5 * 1024 * 1024, f"TEST_PG_foto_{datos.tag}_justa")
+    try:
+        assert r.status_code == 201, r.text
+    finally:
+        ids = _nombres_de_prueba(datos)
+        imagen = r.json().get("imagen_url") if r.status_code == 201 else None
+        with SessionLocal() as db, db.begin():
+            db.execute(text("DELETE FROM productos WHERE id = ANY(:p)"), {"p": ids})
+        if imagen:
+            Path(imagen).unlink(missing_ok=True)
 
 
 # ----------------------------------------- proveedores, último costo y compras

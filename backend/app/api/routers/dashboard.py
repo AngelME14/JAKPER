@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated
 
@@ -63,13 +63,22 @@ def _stock_total(db: Session) -> Decimal:
     return Decimal(total)
 
 
+def _inicio_dia(dia: date) -> datetime:
+    """00:00 del día. Comparado con timestamptz se interpreta en la zona horaria de la sesión,
+    la misma con la que `current_date` calculó "hoy"."""
+    return datetime.combine(dia, time.min)
+
+
 def _ventas_entre(db: Session, desde: date, hasta: date) -> Decimal:
-    """Suma de ventas completadas con fecha en [desde, hasta)."""
+    """Suma de ventas completadas con fecha en [desde, hasta).
+
+    Rango sobre la columna cruda (sargable): `func.date(fecha_venta)` obligaba a un Seq Scan.
+    """
     total = db.scalar(
         select(func.coalesce(func.sum(Venta.total), 0)).where(
             Venta.estado == "COMPLETADA",
-            func.date(Venta.fecha_venta) >= desde,
-            func.date(Venta.fecha_venta) < hasta,
+            Venta.fecha_venta >= _inicio_dia(desde),
+            Venta.fecha_venta < _inicio_dia(hasta),
         )
     )
     return Decimal(total).quantize(CENTAVO, ROUND_HALF_UP)
@@ -77,10 +86,14 @@ def _ventas_entre(db: Session, desde: date, hasta: date) -> Decimal:
 
 def _ventas_por_dia(db: Session, hoy: date, dias: int) -> list[VentaDia]:
     primero = hoy - timedelta(days=dias - 1)
-    dia = func.date(Venta.fecha_venta)
+    dia = func.date(Venta.fecha_venta)  # solo para agrupar; el filtro va por rango
     filas = db.execute(
         select(dia.label("dia"), func.sum(Venta.total).label("total"))
-        .where(Venta.estado == "COMPLETADA", dia >= primero, dia <= hoy)
+        .where(
+            Venta.estado == "COMPLETADA",
+            Venta.fecha_venta >= _inicio_dia(primero),
+            Venta.fecha_venta < _inicio_dia(hoy + timedelta(days=1)),
+        )
         .group_by(dia)
     )
     por_dia = {f.dia: Decimal(f.total) for f in filas}

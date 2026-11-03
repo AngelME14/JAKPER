@@ -85,6 +85,7 @@ class MovimientoInventario(Base):
             name="chk_movimiento_origen",
         ),
         Index("idx_movimientos_producto_lote", "producto_id", "lote_id"),
+        Index("idx_movimientos_lote_fecha_id", "lote_id", "fecha", "id"),
     )
 
     id: Mapped[pk]

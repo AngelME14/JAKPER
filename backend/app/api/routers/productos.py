@@ -7,6 +7,7 @@ from typing import Annotated, Callable
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from sqlalchemy import func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
@@ -25,6 +26,10 @@ from app.schemas.productos import (
 from app.schemas.types import Dinero, Stock
 
 DIRECTORIO_IMAGENES_PRODUCTOS = Path("static/uploads/productos")
+# Tope duro de la foto: 5 MB. Se aplica antes de parsear el multipart (Content-Length) y de nuevo al leer
+LIMITE_IMAGEN_BYTES = 5 * 1024 * 1024
+_MARGEN_MULTIPART_BYTES = 256 * 1024  # campos del formulario y delimitadores
+MENSAJE_IMAGEN_GRANDE = "La imagen supera el límite de 5 MB."
 _EXTENSIONES_IMAGEN = {
     ".jpg": ".jpg",
     ".jpeg": ".jpg",
@@ -47,6 +52,11 @@ class _FormOrJsonRoute(APIRoute):
 
         async def handler(request: Request) -> Response:
             content_type = request.headers.get("content-type", "")
+            if request.method in ("POST", "PUT") and content_type.startswith("multipart/form-data"):
+                # Rechazo temprano: el cuerpo no se parsea ni se vuelca a disco si ya declara ser demasiado grande
+                declarado = request.headers.get("content-length", "")
+                if declarado.isdigit() and int(declarado) > LIMITE_IMAGEN_BYTES + _MARGEN_MULTIPART_BYTES:
+                    return JSONResponse({"detail": MENSAJE_IMAGEN_GRANDE}, status_code=413)
             if request.method in ("POST", "PUT") and content_type.startswith("application/json"):
                 raw = await request.body()
                 if raw:
@@ -109,7 +119,10 @@ def _guardar_imagen_producto(imagen: UploadFile | None) -> str | None:
     DIRECTORIO_IMAGENES_PRODUCTOS.mkdir(parents=True, exist_ok=True)
     nombre_sanitizado = f"{uuid.uuid4().hex}{ext}"
     destino = DIRECTORIO_IMAGENES_PRODUCTOS / nombre_sanitizado
-    contenido = imagen.file.read()
+    # Se lee un byte de más: basta para saber que se excedió sin cargar el archivo completo en memoria
+    contenido = imagen.file.read(LIMITE_IMAGEN_BYTES + 1)
+    if len(contenido) > LIMITE_IMAGEN_BYTES:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, MENSAJE_IMAGEN_GRANDE)
     if not contenido:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,

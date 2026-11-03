@@ -69,6 +69,8 @@ class DetalleCompra(Base):
         ),
         UniqueConstraint("id", "compra_id", name="uq_detalle_compras_id_compra"),
         Index("idx_detalle_compras_compra_id", "compra_id"),
+        Index("idx_detalle_compras_lote_id", "lote_id"),
+        Index("idx_detalle_compras_producto_id", "producto_id"),
     )
 
     id: Mapped[pk]

@@ -4,7 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models import (
     Cliente,
@@ -368,7 +368,24 @@ def _registrar_devolucion(db: Session, data: DevolucionCreate, usuario_id: int) 
 def consultar_venta_por_folio(db: Session, folio: str) -> VentaDevolucionResponse:
     """Venta con cada renglón y lo devuelto hasta ahora. Acepta el folio con '#' o 'Ticket'."""
     limpio = folio.strip().upper().removeprefix("TICKET").strip().lstrip("#").strip()
-    venta = db.scalar(select(Venta).where(Venta.folio == limpio)) if limpio else None
+    venta = (
+        db.scalar(
+            select(Venta)
+            .where(Venta.folio == limpio)
+            # Un SELECT por relación (no uno por renglón): detalles, y de ellos producto y lote;
+            # cliente y usuario (a-uno) viajan en el mismo JOIN de la venta
+            .options(
+                joinedload(Venta.cliente),
+                joinedload(Venta.usuario),
+                selectinload(Venta.detalles).options(
+                    selectinload(DetalleVenta.producto),
+                    selectinload(DetalleVenta.lote),
+                )
+            )
+        )
+        if limpio
+        else None
+    )
     if venta is None:
         raise VentaNoEncontrada(f"No hay ninguna venta con el folio {folio.strip()}")
 

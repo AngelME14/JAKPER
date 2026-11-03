@@ -728,6 +728,20 @@ CREATE INDEX idx_detalle_compras_compra_id ON public.detalle_compras USING btree
 
 
 --
+-- Name: idx_detalle_compras_lote_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_detalle_compras_lote_id ON public.detalle_compras USING btree (lote_id);
+
+
+--
+-- Name: idx_detalle_compras_producto_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_detalle_compras_producto_id ON public.detalle_compras USING btree (producto_id);
+
+
+--
 -- Name: idx_detalle_ventas_lote_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -812,6 +826,13 @@ CREATE INDEX idx_movimientos_fecha ON public.movimientos_inventario USING btree 
 
 
 --
+-- Name: idx_movimientos_lote_fecha_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_movimientos_lote_fecha_id ON public.movimientos_inventario USING btree (lote_id, fecha, id);
+
+
+--
 -- Name: idx_movimientos_merma; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -858,6 +879,13 @@ CREATE INDEX idx_productos_nombre_trgm ON public.productos USING gin (nombre pub
 --
 
 CREATE INDEX idx_ventas_cliente_id ON public.ventas USING btree (cliente_id);
+
+
+--
+-- Name: idx_ventas_fecha_completadas; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ventas_fecha_completadas ON public.ventas USING btree (fecha_venta) WHERE ((estado)::text = 'COMPLETADA'::text);
 
 
 --
