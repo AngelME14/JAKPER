@@ -4,7 +4,6 @@ sqlalchemy>=2.0.28
 psycopg2-binary>=2.9.9
 pydantic>=2.6.4
 pydantic-settings>=2.2.1
-alembic>=1.13.1
 bcrypt>=4.1.2
 pyjwt>=2.8.0
 python-dotenv>=1.0.1

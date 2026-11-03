@@ -107,7 +107,10 @@ class Datos:
     def limpiar(self):
         p = {"p": self.producto_ids, "u": [self.cajero_id, self.encargado_id]}
         with SessionLocal() as db, db.begin():
+            # El Kardex es inmutable por trigger: solo la limpieza de pruebas lo salta (requiere superusuario)
+            db.execute(text("SET LOCAL session_replication_role = replica"))
             db.execute(text("DELETE FROM movimientos_inventario WHERE producto_id = ANY(:p)"), p)
+            db.execute(text("SET LOCAL session_replication_role = origin"))
             db.execute(text("DELETE FROM devoluciones WHERE venta_id IN (SELECT id FROM ventas WHERE usuario_id = ANY(:u))"), p)
             db.execute(text("DELETE FROM pagos WHERE venta_id IN (SELECT id FROM ventas WHERE usuario_id = ANY(:u))"), p)
             db.execute(text("DELETE FROM detalle_ventas WHERE producto_id = ANY(:p)"), p)

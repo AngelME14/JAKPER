@@ -116,7 +116,10 @@ class Datos:
         pids = self.producto_ids
         with SessionLocal() as db, db.begin():
             p = {"p": pids, "u": self.usuario_id}
+            # El Kardex es inmutable por trigger: solo la limpieza de pruebas lo salta (requiere superusuario)
+            db.execute(text("SET LOCAL session_replication_role = replica"))
             db.execute(text("DELETE FROM movimientos_inventario WHERE producto_id = ANY(:p)"), p)
+            db.execute(text("SET LOCAL session_replication_role = origin"))
             db.execute(text("DELETE FROM mermas WHERE producto_id = ANY(:p)"), p)
             db.execute(text("DELETE FROM devoluciones WHERE venta_id IN (SELECT id FROM ventas WHERE usuario_id = :u)"), p)
             db.execute(text("DELETE FROM pagos WHERE venta_id IN (SELECT id FROM ventas WHERE usuario_id = :u)"), p)
