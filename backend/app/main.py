@@ -25,7 +25,7 @@ from app.api.routers import (
 logger = logging.getLogger(__name__)
 
 # Orígenes explícitos (no "*"): con allow_credentials=True el navegador rechaza el comodín
-ORIGENES_PERMITIDOS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+ORIGENES_PERMITIDOS = ["http://localhost:5173", "http://127.0.0.1:5173", "https://jakper.vercel.app"]
 
 Path("static/uploads/productos").mkdir(parents=True, exist_ok=True)
 
