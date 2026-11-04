@@ -1,6 +1,5 @@
 # Seguridad y Auditoría
 .env
-.env.*
 *.env
 repomix-output.xml
 
