@@ -152,7 +152,6 @@ def test_dashboard_sin_token_recibe_401():
 ENDPOINTS_SOLO_GERENCIA = [
     "/ventas/1/cancelar",
     "/ventas/1/devoluciones",
-    "/devoluciones",
     "/mermas",
     "/compras",
     "/proveedores",
@@ -162,11 +161,10 @@ ENDPOINTS_SOLO_GERENCIA = [
 @pytest.mark.parametrize("ruta", ENDPOINTS_SOLO_GERENCIA)
 def test_endpoints_de_gerencia_rechazan_cajero_y_anonimo(datos, ruta):
     # El cuerpo vacio es invalido a proposito: el rol se valida antes que el cuerpo
-    for prefijo in ("", "/api"):
-        assert client.post(prefijo + ruta, json={}).status_code == 401
-        r = client.post(prefijo + ruta, json={}, headers=datos.headers(datos.cajero_id))
-        assert r.status_code == 403, (prefijo + ruta, r.text)
-        assert r.json()["detail"] == "Permisos insuficientes"
+    assert client.post(ruta, json={}).status_code == 401
+    r = client.post(ruta, json={}, headers=datos.headers(datos.cajero_id))
+    assert r.status_code == 403, (ruta, r.text)
+    assert r.json()["detail"] == "Permisos insuficientes"
 
 
 @pytest.mark.parametrize("ruta", ENDPOINTS_SOLO_GERENCIA)
@@ -451,11 +449,11 @@ def test_foto_de_exactamente_5mb_se_acepta(datos):
 def test_crear_proveedor_y_validaciones(datos):
     h = datos.headers(datos.encargado_id)
     # Sin razon_social -> 422
-    assert client.post("/api/proveedores", json={"rfc": "XAXX010101000"}, headers=h).status_code == 422
-    assert client.post("/api/proveedores", json={"razon_social": "   "}, headers=h).status_code == 422
+    assert client.post("/proveedores", json={"rfc": "XAXX010101000"}, headers=h).status_code == 422
+    assert client.post("/proveedores", json={"razon_social": "   "}, headers=h).status_code == 422
 
     r = client.post(
-        "/api/proveedores",
+        "/proveedores",
         json={
             "razon_social": f"TEST_PG Proveedor Nuevo {datos.tag}",
             "rfc": "LPN261102AB1",
@@ -482,13 +480,13 @@ def test_ultimo_costo_y_recepcion_compras_autolote_y_caducidad(datos):
     pid_cad = datos.producto(caducidad=True, decimales=False)
 
     # Sin compras previas -> 0.00
-    r0 = client.get(f"/api/productos/{pid_no_cad}/ultimo-costo", headers=h)
+    r0 = client.get(f"/productos/{pid_no_cad}/ultimo-costo", headers=h)
     assert r0.status_code == 200
     assert D(str(r0.json()["ultimo_costo"])) == D("0.00")
 
     # El folio interno lo asigna el servidor: si el cliente intenta mandarlo -> 422
     con_folio = client.post(
-        "/api/compras",
+        "/compras",
         json={
             "folio": "COM-1999-00001",
             "proveedor_id": datos.proveedor_id,
@@ -504,7 +502,7 @@ def test_ultimo_costo_y_recepcion_compras_autolote_y_caducidad(datos):
         {"producto_id": pid_cad, "cantidad": "2", "costo_unitario": "8.00", "codigo_lote": "LOTE-CAD-1"},
     ):
         r_inv = client.post(
-            "/api/compras",
+            "/compras",
             json={"factura_proveedor": f"FAC-INV-{datos.tag}", "proveedor_id": datos.proveedor_id, "items": [item_invalido]},
             headers=h,
         )
@@ -512,7 +510,7 @@ def test_ultimo_costo_y_recepcion_compras_autolote_y_caducidad(datos):
 
     # Compra 1: producto sin caducidad ni lote manual -> autogenera AUT-{YYYYMMDD}-{producto_id}
     r1 = client.post(
-        "/api/compras",
+        "/compras",
         json={
             "factura_proveedor": f"FAC-001-{datos.tag}",
             "proveedor_id": datos.proveedor_id,
@@ -549,7 +547,7 @@ def test_ultimo_costo_y_recepcion_compras_autolote_y_caducidad(datos):
 
     # Compra 2 más reciente con distinto costo -> ultimo-costo devuelve el más reciente
     r2 = client.post(
-        "/api/compras",
+        "/compras",
         json={
             "factura_proveedor": f"FAC-002-{datos.tag}",
             "proveedor_id": datos.proveedor_id,
@@ -561,7 +559,7 @@ def test_ultimo_costo_y_recepcion_compras_autolote_y_caducidad(datos):
     # El consecutivo avanza de uno en uno
     assert int(r2.json()["folio"].rsplit("-", 1)[1]) == int(c1["folio"].rsplit("-", 1)[1]) + 1
 
-    r_costo = client.get(f"/api/productos/{pid_no_cad}/ultimo-costo", headers=h)
+    r_costo = client.get(f"/productos/{pid_no_cad}/ultimo-costo", headers=h)
     assert r_costo.status_code == 200
     assert D(str(r_costo.json()["ultimo_costo"])) == D("15.75")
 

@@ -1,11 +1,4 @@
-from pydantic import BaseModel, Field
-
-from app.schemas.types import Entrada
-
-
-class LoginRequest(Entrada):
-    usuario: str = Field(min_length=1, max_length=50)
-    password: str = Field(min_length=1, max_length=72)
+from pydantic import BaseModel
 
 
 class TokenResponse(BaseModel):

@@ -78,23 +78,23 @@ def _nuevo(**cambios):
 def test_solo_admin_entra_al_modulo(db):
     admin = _usuario(db, "Admin")
     objetivo = _usuario(db, "Cajero")
-    assert client.get("/api/usuarios").status_code == 401
+    assert client.get("/usuarios").status_code == 401
     for rol in ("Encargado", "Cajero"):
         h = _h(_usuario(db, rol))
-        assert client.get("/api/usuarios", headers=h).status_code == 403
-        assert client.post("/api/usuarios", json=_nuevo(), headers=h).status_code == 403
-        assert client.patch(f"/api/usuarios/{objetivo.id}", json={"nombre": "X"}, headers=h).status_code == 403
-        assert client.patch(f"/api/usuarios/{objetivo.id}/toggle-activo", headers=h).status_code == 403
+        assert client.get("/usuarios", headers=h).status_code == 403
+        assert client.post("/usuarios", json=_nuevo(), headers=h).status_code == 403
+        assert client.patch(f"/usuarios/{objetivo.id}", json={"nombre": "X"}, headers=h).status_code == 403
+        assert client.patch(f"/usuarios/{objetivo.id}/toggle-activo", headers=h).status_code == 403
         assert (
-            client.patch(f"/api/usuarios/{objetivo.id}/password", json={"password": "Otra12345"}, headers=h).status_code
+            client.patch(f"/usuarios/{objetivo.id}/password", json={"password": "Otra12345"}, headers=h).status_code
             == 403
         )
-    assert client.get("/api/usuarios", headers=_h(admin)).status_code == 200
+    assert client.get("/usuarios", headers=_h(admin)).status_code == 200
 
 
 def test_listado_ordenado_y_sin_hash(db):
     admin = _usuario(db, "Admin")
-    r = client.get("/api/usuarios", headers=_h(admin))
+    r = client.get("/usuarios", headers=_h(admin))
     assert r.status_code == 200
     filas = r.json()
     ids = [u["id"] for u in filas]
@@ -107,7 +107,7 @@ def test_listado_ordenado_y_sin_hash(db):
 def test_crear_usuario_valida_y_hashea(db):
     h = _h(_usuario(db, "Admin"))
     cuerpo = _nuevo()
-    r = client.post("/api/usuarios", json=cuerpo, headers=h)
+    r = client.post("/usuarios", json=cuerpo, headers=h)
     assert r.status_code == 201, r.text
     creado = r.json()
     assert creado["activo"] is True and creado["rol"] == "Cajero"
@@ -121,12 +121,12 @@ def test_crear_usuario_valida_y_hashea(db):
     assert login.status_code == 200
 
     # Duplicado, rol fuera del catalogo, contraseña corta o larga, campo ajeno
-    assert client.post("/api/usuarios", json=cuerpo, headers=h).status_code == 409
-    assert client.post("/api/usuarios", json=_nuevo(rol="Dueño"), headers=h).status_code == 422
-    assert client.post("/api/usuarios", json=_nuevo(password="corta"), headers=h).status_code == 422
-    assert client.post("/api/usuarios", json=_nuevo(password="a" * 73), headers=h).status_code == 422
-    assert client.post("/api/usuarios", json=_nuevo(usuario="con espacio"), headers=h).status_code == 422
-    assert client.post("/api/usuarios", json=_nuevo(password_hash="x"), headers=h).status_code == 422
+    assert client.post("/usuarios", json=cuerpo, headers=h).status_code == 409
+    assert client.post("/usuarios", json=_nuevo(rol="Dueño"), headers=h).status_code == 422
+    assert client.post("/usuarios", json=_nuevo(password="corta"), headers=h).status_code == 422
+    assert client.post("/usuarios", json=_nuevo(password="a" * 73), headers=h).status_code == 422
+    assert client.post("/usuarios", json=_nuevo(usuario="con espacio"), headers=h).status_code == 422
+    assert client.post("/usuarios", json=_nuevo(password_hash="x"), headers=h).status_code == 422
 
 
 def test_editar_nombre_usuario_y_rol(db):
@@ -135,28 +135,28 @@ def test_editar_nombre_usuario_y_rol(db):
     ocupado = _usuario(db, "Cajero")
     nuevo_usuario = f"renombrado_{uuid.uuid4().hex[:6]}"
     r = client.patch(
-        f"/api/usuarios/{otro.id}",
+        f"/usuarios/{otro.id}",
         json={"nombre": "  Ana López ", "usuario": nuevo_usuario, "rol": "Encargado"},
         headers=h,
     )
     assert r.status_code == 200, r.text
     assert r.json()["nombre"] == "Ana López"
     assert r.json()["usuario"] == nuevo_usuario and r.json()["rol"] == "Encargado"
-    assert client.patch(f"/api/usuarios/{otro.id}", json={"usuario": ocupado.usuario}, headers=h).status_code == 409
-    assert client.patch(f"/api/usuarios/{otro.id}", json={"rol": "Jefe"}, headers=h).status_code == 422
-    assert client.patch("/api/usuarios/999999999", json={"nombre": "X"}, headers=h).status_code == 404
+    assert client.patch(f"/usuarios/{otro.id}", json={"usuario": ocupado.usuario}, headers=h).status_code == 409
+    assert client.patch(f"/usuarios/{otro.id}", json={"rol": "Jefe"}, headers=h).status_code == 422
+    assert client.patch("/usuarios/999999999", json={"nombre": "X"}, headers=h).status_code == 404
 
 
 def test_toggle_activo_y_login_bloqueado(db):
     h = _h(_usuario(db, "Admin"))
-    creado = client.post("/api/usuarios", json=_nuevo(), headers=h).json()
-    r = client.patch(f"/api/usuarios/{creado['id']}/toggle-activo", headers=h)
+    creado = client.post("/usuarios", json=_nuevo(), headers=h).json()
+    r = client.patch(f"/usuarios/{creado['id']}/toggle-activo", headers=h)
     assert r.status_code == 200 and r.json()["activo"] is False
     login = client.post("/auth/login", data={"username": creado["usuario"], "password": "Secreta123"})
     assert login.status_code == 401
-    r = client.patch(f"/api/usuarios/{creado['id']}/toggle-activo", headers=h)
+    r = client.patch(f"/usuarios/{creado['id']}/toggle-activo", headers=h)
     assert r.status_code == 200 and r.json()["activo"] is True
-    assert client.patch("/api/usuarios/999999999/toggle-activo", headers=h).status_code == 404
+    assert client.patch("/usuarios/999999999/toggle-activo", headers=h).status_code == 404
 
 
 def test_no_se_puede_dejar_el_sistema_sin_admin_activo(db):
@@ -166,23 +166,23 @@ def test_no_se_puede_dejar_el_sistema_sin_admin_activo(db):
     db.flush()
     h = _h(admin)
 
-    r = client.patch(f"/api/usuarios/{admin.id}/toggle-activo", headers=h)
+    r = client.patch(f"/usuarios/{admin.id}/toggle-activo", headers=h)
     assert r.status_code == 400
     assert "Admin" in r.json()["detail"]
-    assert client.patch(f"/api/usuarios/{admin.id}", json={"rol": "Cajero"}, headers=h).status_code == 400
+    assert client.patch(f"/usuarios/{admin.id}", json={"rol": "Cajero"}, headers=h).status_code == 400
     # Renombrarlo o dejarle el mismo rol si se permite
-    assert client.patch(f"/api/usuarios/{admin.id}", json={"nombre": "Nuevo", "rol": "Admin"}, headers=h).status_code == 200
+    assert client.patch(f"/usuarios/{admin.id}", json={"nombre": "Nuevo", "rol": "Admin"}, headers=h).status_code == 200
 
     # Con un segundo Admin activo ya se puede desactivar al primero
-    segundo = client.post("/api/usuarios", json=_nuevo(rol="Admin"), headers=h).json()
-    r = client.patch(f"/api/usuarios/{admin.id}/toggle-activo", headers=_h(Usuario(id=segundo["id"], rol="Admin")))
+    segundo = client.post("/usuarios", json=_nuevo(rol="Admin"), headers=h).json()
+    r = client.patch(f"/usuarios/{admin.id}/toggle-activo", headers=_h(Usuario(id=segundo["id"], rol="Admin")))
     assert r.status_code == 200 and r.json()["activo"] is False
 
 
 def test_cambiar_password(db):
     h = _h(_usuario(db, "Admin"))
-    creado = client.post("/api/usuarios", json=_nuevo(), headers=h).json()
-    ruta = f"/api/usuarios/{creado['id']}/password"
+    creado = client.post("/usuarios", json=_nuevo(), headers=h).json()
+    ruta = f"/usuarios/{creado['id']}/password"
     assert client.patch(ruta, json={"password": "corta"}, headers=h).status_code == 422
     assert client.patch(ruta, json={"password": "NuevaClave456", "extra": 1}, headers=h).status_code == 422
     r = client.patch(ruta, json={"password": "NuevaClave456"}, headers=h)
@@ -190,4 +190,4 @@ def test_cambiar_password(db):
     viejo = client.post("/auth/login", data={"username": creado["usuario"], "password": "Secreta123"})
     nuevo = client.post("/auth/login", data={"username": creado["usuario"], "password": "NuevaClave456"})
     assert viejo.status_code == 401 and nuevo.status_code == 200
-    assert client.patch("/api/usuarios/999999999/password", json={"password": "NuevaClave456"}, headers=h).status_code == 404
+    assert client.patch("/usuarios/999999999/password", json={"password": "NuevaClave456"}, headers=h).status_code == 404

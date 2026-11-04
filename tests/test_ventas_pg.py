@@ -20,7 +20,7 @@ from app.core.database import SessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402
     Categoria, Cliente, DetalleVenta, Devolucion, LoteStock, Merma, Producto, Usuario,
 )
-from app.models import MovimientoInventario, Venta  # noqa: E402
+from app.models import MovimientoInventario  # noqa: E402
 from app.api.routers.inventario import kardex  # noqa: E402
 from app.schemas.ventas import DevolucionCreate, VentaCreate  # noqa: E402
 from app.services import ventas_service  # noqa: E402

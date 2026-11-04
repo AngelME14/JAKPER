@@ -25,16 +25,6 @@ MotivoMermaRegistrado = Literal[
 _ENTERO = Decimal("1")
 _MILESIMA = Decimal("0.001")
 
-# tipo -> única FK de origen que debe venir (chk_movimiento_origen); ajustes: ninguna
-_ORIGEN = {
-    "ENTRADA_COMPRA": "detalle_compra_id",
-    "VENTA": "detalle_venta_id",
-    "CANCELACION_VENTA": "detalle_venta_id",
-    "MERMA": "merma_id",
-    "DEVOLUCION_STOCK": "devolucion_id",
-}
-_CAMPOS_ORIGEN = ("detalle_compra_id", "detalle_venta_id", "merma_id", "devolucion_id")
-
 
 def _formatear_cantidad(valor: Decimal, permite_decimales: bool) -> Decimal:
     if not permite_decimales and valor == valor.to_integral_value():
@@ -50,10 +40,6 @@ class MermaCreate(Entrada):
     descripcion: str | None = None
 
 
-class MermaUpdate(Entrada):
-    descripcion: str | None = None
-
-
 class MermaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,31 +52,6 @@ class MermaResponse(BaseModel):
     descripcion: str | None
     usuario_id: int
     fecha: datetime
-
-
-class MovimientoInventarioCreate(Entrada):
-    producto_id: int
-    lote_id: int
-    tipo: TipoMovimiento
-    cantidad: Cantidad
-    motivo: str | None = None
-    detalle_compra_id: int | None = None
-    detalle_venta_id: int | None = None
-    merma_id: int | None = None
-    devolucion_id: int | None = None
-
-    @model_validator(mode="after")
-    def _origen_coincide_con_tipo(self) -> Self:
-        esperado = _ORIGEN.get(self.tipo)
-        for campo in _CAMPOS_ORIGEN:
-            if (campo == esperado) != (getattr(self, campo) is not None):
-                raise ValueError(
-                    f"tipo {self.tipo} exige solo {esperado or 'ningún origen'}; "
-                    f"revisa {campo}"
-                )
-        if esperado is None and not self.motivo:
-            raise ValueError(f"tipo {self.tipo} exige motivo")
-        return self
 
 
 class MovimientoInventarioResponse(BaseModel):
@@ -129,4 +90,3 @@ class KardexResponse(MovimientoInventarioResponse):
             self.saldo_resultante, self.permite_decimales
         )
         return self
-

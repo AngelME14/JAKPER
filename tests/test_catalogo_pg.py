@@ -119,7 +119,7 @@ def test_crear_y_editar_producto_multipart_con_imagen_y_booleano_puro(entorno):
     try:
         # 1. Crear producto con Form + UploadFile (multipart/form-data)
         r = c.post(
-            "/api/productos",
+            "/productos",
             data={
                 "categoria_id": str(categoria_id),
                 "codigo_barras_sku": f"IMG-{marca}",
@@ -147,9 +147,9 @@ def test_crear_y_editar_producto_multipart_con_imagen_y_booleano_puro(entorno):
         assert r_static.status_code == 200
         assert r_static.content == png_bytes
 
-        # 2. PUT /api/productos/{id} con nueva imagen .webp
+        # 2. PUT /productos/{id} con nueva imagen .webp
         r_put = c.put(
-            f"/api/productos/{pid}",
+            f"/productos/{pid}",
             data={
                 "nombre": f"Shampoo Renovado {marca}",
                 "precio_venta": "199.50",
@@ -166,7 +166,7 @@ def test_crear_y_editar_producto_multipart_con_imagen_y_booleano_puro(entorno):
 
         # 3. Rechazar formato de archivo no permitido (ej. .txt / text/plain)
         r_bad_img = c.post(
-            "/api/productos",
+            "/productos",
             data={
                 "categoria_id": str(categoria_id),
                 "nombre": f"Invalido {marca}",
@@ -178,7 +178,7 @@ def test_crear_y_editar_producto_multipart_con_imagen_y_booleano_puro(entorno):
 
         # 4. Rechazar fecha en requiere_caducidad (solo booleano puro)
         r_bad_bool = c.post(
-            "/api/productos",
+            "/productos",
             data={
                 "categoria_id": str(categoria_id),
                 "nombre": f"FechaEnBool {marca}",

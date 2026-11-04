@@ -161,3 +161,15 @@ def test_cors_permite_origen_de_vite_con_credenciales():
         headers={"Origin": "http://evil.example", "Access-Control-Request-Method": "POST"},
     )
     assert "access-control-allow-origin" not in ajeno.headers
+
+
+def test_rutas_huerfanas_y_prefijo_api_ya_no_existen():
+    paths = app.openapi()["paths"]
+    assert "/devoluciones" not in paths
+    assert "/inventario/movimientos" not in paths
+    assert "post" in paths["/ventas/{venta_id}/devoluciones"]  # la ruta que sí usa el frontend
+    assert "get" in paths["/ventas/{venta_id}"] and "get" in paths["/compras/{compra_id}"]  # los usa ComprobanteModal
+    assert not [p for p in paths if p.startswith("/api")]
+    # Cada router se monta una sola vez
+    montados = [r for r in app.routes if type(r).__name__ == "_IncludedRouter"]
+    assert len(montados) == 11

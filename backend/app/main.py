@@ -14,7 +14,6 @@ from app.api.routers import (
     clientes,
     compras,
     dashboard,
-    devoluciones,
     inventario,
     mermas,
     productos,
@@ -118,12 +117,11 @@ _ROUTERS = (
     proveedores.router,
     compras.router,
     mermas.router,
-    devoluciones.router,
     inventario.router,
     dashboard.router,
     usuarios.router,
 )
 
+# Un solo montaje, sin prefijo: es lo que consume el frontend (baseURL sin /api) y declara OAuth2 (/auth/login)
 for _router in _ROUTERS:
     app.include_router(_router)
-    app.include_router(_router, prefix="/api", include_in_schema=False)

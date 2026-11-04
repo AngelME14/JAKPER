@@ -237,7 +237,6 @@ def _validar_rango(inicio: date | None, fin: date | None) -> None:
 
 
 @router.get("/kardex", response_model=list[KardexResponse])
-@router.get("/movimientos", response_model=list[KardexResponse], include_in_schema=False)
 def kardex(
     db: Annotated[Session, Depends(get_db)],
     _user: Annotated[Usuario, Depends(get_current_user)],

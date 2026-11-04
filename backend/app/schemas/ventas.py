@@ -41,13 +41,6 @@ class VentaCreate(Entrada):
     pagos: list[PagoCreate] = Field(min_length=1)
 
 
-class VentaUpdate(Entrada):
-    """Única mutación permitida: cancelar (chk_ventas_cancelacion_motivo)."""
-
-    estado: Literal["CANCELADA"]
-    motivo_cancelacion: str = Field(min_length=1)
-
-
 class VentaCancelar(Entrada):
     motivo_cancelacion: str = Field(min_length=1)
 
