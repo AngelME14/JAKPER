@@ -17,9 +17,6 @@ dist/
 dist-ssr/
 *.local
 
-# Multimedia / Subidas locales
-uploads/
-static/uploads/
 
 # OS
 .DS_Store
